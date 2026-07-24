@@ -49,13 +49,13 @@ def get_liff_page():
     """回傳 LINE LIFF 視覺化數據圖表網頁"""
     return FileResponse(os.path.join(STATIC_DIR, "liff.html"))
 
-@app.get("/recipe_blue.png")
-def get_recipe_blue_menu_image():
-    """回傳包含智慧健康食譜之淡藍色 2500x1686 圖文選單圖片"""
-    p1 = os.path.join(STATIC_DIR, "rich_menu_recipe_blue_2500x1686.png")
+@app.get("/photo_menu.png")
+def get_photo_menu_image():
+    """回傳基於使用者鮮美健康食材照片合成之 2500x1686 圖文選單圖片"""
+    p1 = os.path.join(STATIC_DIR, "rich_menu_photo_2500x1686.png")
     if os.path.exists(p1):
         return FileResponse(p1)
-    return FileResponse(os.path.join(STATIC_DIR, "rich_menu_blue_2500x1686.png"))
+    return FileResponse(os.path.join(STATIC_DIR, "rich_menu_recipe_blue_2500x1686.png"))
 
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
