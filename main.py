@@ -57,7 +57,13 @@ def get_rich_menu_image():
 @app.get("/rich_menu_1040.png")
 def get_rich_menu_1040_image():
     """回傳 1040x1040 精緻質感圖文選單背景圖片"""
-    return FileResponse(os.path.join(STATIC_DIR, "rich_menu_1040x1040.png"))
+    p1 = os.path.join(STATIC_DIR, "rich_menu_1040x1040.png")
+    p2 = os.path.join(os.getcwd(), "static", "rich_menu_1040x1040.png")
+    if os.path.exists(p1):
+        return FileResponse(p1)
+    elif os.path.exists(p2):
+        return FileResponse(p2)
+    return {"error": "file not found", "p1": p1, "p2": p2, "cwd": os.getcwd()}
 
 @app.get("/api/user_stats/{user_id}")
 def get_user_stats(user_id: str, db: Session = Depends(get_db)):
