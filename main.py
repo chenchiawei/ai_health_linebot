@@ -49,13 +49,13 @@ def get_liff_page():
     """回傳 LINE LIFF 視覺化數據圖表網頁"""
     return FileResponse(os.path.join(STATIC_DIR, "liff.html"))
 
-@app.get("/gourmet_menu.png")
-def get_gourmet_menu_image():
-    """回傳超質感鮮美食材寫真搭配尊榮雙色卡片之 2500x1686 圖文選單圖片"""
-    p1 = os.path.join(STATIC_DIR, "rich_menu_gourmet_2500x1686.png")
+@app.get("/exact_fit_menu.png")
+def get_exact_fit_menu_image():
+    """回傳 100% 精確對齊 LINE 6 格劃分紅線之 2500x1686 圖文選單圖片"""
+    p1 = os.path.join(STATIC_DIR, "rich_menu_exact_fit_2500x1686.png")
     if os.path.exists(p1):
         return FileResponse(p1)
-    return FileResponse(os.path.join(STATIC_DIR, "rich_menu_photo_2500x1686.png"))
+    return FileResponse(os.path.join(STATIC_DIR, "rich_menu_gourmet_2500x1686.png"))
 
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
