@@ -46,6 +46,11 @@ def get_liff_page():
     """回傳 LINE LIFF 視覺化數據圖表網頁"""
     return FileResponse("static/liff.html")
 
+@app.get("/rich_menu.png")
+def get_rich_menu_image():
+    """回傳 2500x1686 圖文選單背景圖片"""
+    return FileResponse("static/rich_menu_2500x1686.png")
+
 @app.get("/api/user_stats/{user_id}")
 def get_user_stats(user_id: str, db: Session = Depends(get_db)):
     """提供 LIFF 圖表使用之歷史體重與三大營養素統計資料"""
