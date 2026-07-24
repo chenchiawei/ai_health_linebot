@@ -10,9 +10,9 @@ def get_quick_reply_buttons() -> QuickReply:
     return QuickReply(
         items=[
             QuickReplyItem(action=MessageAction(label="📊 今日進度", text="查看狀態")),
+            QuickReplyItem(action=MessageAction(label="🍳 智慧減脂食譜", text="智慧食譜")),
             QuickReplyItem(action=MessageAction(label="🏪 7-11點餐指南", text="7-11攻略")),
             QuickReplyItem(action=MessageAction(label="🍲 火鍋避坑指南", text="火鍋攻略")),
-            QuickReplyItem(action=MessageAction(label="🍱 便當挑選指南", text="便當攻略")),
             QuickReplyItem(action=LocationAction(label="📍 附近外食推薦"))
         ]
     )

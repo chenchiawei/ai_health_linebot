@@ -49,13 +49,13 @@ def get_liff_page():
     """回傳 LINE LIFF 視覺化數據圖表網頁"""
     return FileResponse(os.path.join(STATIC_DIR, "liff.html"))
 
-@app.get("/blue_menu.png")
-def get_blue_menu_image():
-    """回傳企業醫療級淡藍色 2500x1686 圖文選單圖片"""
-    p1 = os.path.join(STATIC_DIR, "rich_menu_blue_2500x1686.png")
+@app.get("/recipe_blue.png")
+def get_recipe_blue_menu_image():
+    """回傳包含智慧健康食譜之淡藍色 2500x1686 圖文選單圖片"""
+    p1 = os.path.join(STATIC_DIR, "rich_menu_recipe_blue_2500x1686.png")
     if os.path.exists(p1):
         return FileResponse(p1)
-    return FileResponse(os.path.join(STATIC_DIR, "rich_menu_4grid_2500x1686.png"))
+    return FileResponse(os.path.join(STATIC_DIR, "rich_menu_blue_2500x1686.png"))
 
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
@@ -160,7 +160,13 @@ def handle_text_message(event):
         db.commit()
         db.refresh(user)
 
-    # 2. 指令解析：外食情境避坑指南
+    # 2. 指令解析：外食情境避坑指南 & 智慧健康食譜
+    if "食譜" in user_text:
+        food_kw = user_text.replace("智慧食譜", "").replace("食譜", "").strip() or "健身雞胸肉"
+        recipe_text = gemini_service.generate_healthy_recipe(food_kw)
+        send_line_reply(event.reply_token, TextMessage(text=recipe_text, quick_reply=line_service.get_quick_reply_buttons()))
+        return
+
     if "7-11" in user_text or "超商" in user_text:
         flex_msg = line_service.create_outing_guide_flex("7-11")
         send_line_reply(event.reply_token, flex_msg)

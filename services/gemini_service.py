@@ -213,4 +213,45 @@ def generate_dine_out_tips(restaurant_name: str, restaurant_type: str, remaining
         )
         return response.text.strip()
     except Exception as e:
-        return f"💡 點餐建議：建議選澤高蛋白質主菜（如清蒸/舒肥雞胸肉/魚肉），白飯減半，並搭配無糖飲料以防熱量超標。"
+        return f"💡 點餐建議：建議選擇高蛋白質主菜（如清蒸/舒肥雞胸肉/魚肉），白飯減半，並搭配無糖飲料以防熱量超標。"
+
+def generate_healthy_recipe(food_query: str = "健身雞胸肉") -> str:
+    """
+    使用 Gemini 產生減脂/健身智慧健康食譜導覽指南。
+    """
+    if not settings.GEMINI_API_KEY:
+        return (
+            f"🍳 【智慧減脂食譜：{food_query}】\n\n"
+            f"🛒 推薦食材：雞胸肉 200g、花椰菜 100g、橄欖油 5ml、海鹽少許。\n"
+            f"🍳 簡易步驟：\n"
+            f"1. 雞胸肉切片醃黑胡椒與少許鹽 10 分鐘。\n"
+            f"2. 中火少油將兩面各煎 3 分鐘至金黃熟透。\n"
+            f"3. 搭配水煮花椰菜即完成美味健身餐！\n\n"
+            f"🔥 預估熱量：約 280 kcal (蛋白質 42g | 脂肪 6g)"
+        )
+
+    try:
+        from google import genai
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        prompt = (
+            f"使用者想學做健康/減脂/健身料理：'{food_query}'。\n"
+            f"請以親切專業的營養師語氣，提供一份快速美味的健康食譜，格式包含：\n"
+            f"🍳 【食譜名稱】\n"
+            f"🛒 準備食材\n"
+            f"🍳 簡易步驟 (3步以內)\n"
+            f"🔥 預估熱量與蛋白質\n"
+            f"💡 減脂下廚小撇步。請保持文字精簡清晰適合 LINE 閱讀。"
+        )
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=prompt
+        )
+        return response.text.strip()
+    except Exception as e:
+        logger.error(f"Generate recipe error: {e}")
+        return (
+            f"🍳 【智慧減脂食譜：{food_query}】\n\n"
+            f"🛒 食材：雞胸肉 200g、蒜片、橄欖油 5ml。\n"
+            f"🍳 步驟：雞胸肉醃鹽與黑胡椒，熱鍋蒜片爆香後煎至熟透。\n"
+            f"🔥 熱量估算：約 260 kcal (蛋白質 40g)"
+        )
