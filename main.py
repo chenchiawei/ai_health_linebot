@@ -54,6 +54,11 @@ def get_rich_menu_image():
     """回傳 2500x1686 圖文選單背景圖片"""
     return FileResponse(os.path.join(STATIC_DIR, "rich_menu_2500x1686.png"))
 
+@app.get("/rich_menu_1040.png")
+def get_rich_menu_1040_image():
+    """回傳 1040x1040 精緻質感圖文選單背景圖片"""
+    return FileResponse(os.path.join(STATIC_DIR, "rich_menu_1040x1040.png"))
+
 @app.get("/api/user_stats/{user_id}")
 def get_user_stats(user_id: str, db: Session = Depends(get_db)):
     """提供 LIFF 圖表使用之歷史體重與三大營養素統計資料"""
