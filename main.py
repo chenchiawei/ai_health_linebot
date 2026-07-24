@@ -54,16 +54,45 @@ def get_rich_menu_image():
     """回傳 2500x1686 圖文選單背景圖片"""
     return FileResponse(os.path.join(STATIC_DIR, "rich_menu_2500x1686.png"))
 
-@app.get("/rich_menu_1040.png")
-def get_rich_menu_1040_image():
-    """回傳 1040x1040 精緻質感圖文選單背景圖片"""
-    p1 = os.path.join(STATIC_DIR, "rich_menu_1040x1040.png")
-    p2 = os.path.join(os.getcwd(), "static", "rich_menu_1040x1040.png")
-    if os.path.exists(p1):
-        return FileResponse(p1)
-    elif os.path.exists(p2):
-        return FileResponse(p2)
-    return {"error": "file not found", "p1": p1, "p2": p2, "cwd": os.getcwd()}
+from io import BytesIO
+from PIL import Image, ImageDraw, ImageFont
+from fastapi.responses import FileResponse, Response
+
+@app.get("/menu1040.png")
+def get_dynamic_rich_menu():
+    """記憶體即時動態生成 1040x1040 極致質感圖文選單 PNG 圖片"""
+    width, height = 1040, 1040
+    img = Image.new("RGB", (width, height), color=(15, 23, 42))
+    draw = ImageDraw.Draw(img)
+    col_w, row_h = width // 3, height // 2
+    panels = [
+        {"title": "🍱 飲食打卡", "sub": "AI 估算熱量", "bg": (16, 185, 129), "x": 0, "y": 0},
+        {"title": "📊 健康數據", "sub": "7日體重趨勢", "bg": (14, 165, 233), "x": col_w, "y": 0},
+        {"title": "📍 周邊外食", "sub": "定位推薦美食", "bg": (245, 158, 11), "x": col_w * 2, "y": 0},
+        {"title": "🏪 超商攻略", "sub": "7-11/全家組合", "bg": (34, 197, 94), "x": 0, "y": row_h},
+        {"title": "🍲 火鍋便當", "sub": "聰明替換醬汁", "bg": (239, 68, 68), "x": col_w, "y": row_h},
+        {"title": "⚖️ 設定體重", "sub": "更新 TDEE", "bg": (139, 92, 246), "x": col_w * 2, "y": row_h},
+    ]
+    try:
+        font_main = ImageFont.truetype("msjh.ttc", 38)
+        font_sub = ImageFont.truetype("msjh.ttc", 22)
+    except:
+        font_main = font_sub = ImageFont.load_default()
+
+    margin = 12
+    for p in panels:
+        x0, y0 = p["x"] + margin, p["y"] + margin
+        x1, y1 = p["x"] + col_w - margin, p["y"] + row_h - margin
+        draw.rounded_rectangle([x0, y0, x1, y1], radius=24, fill=p["bg"])
+        cx = p["x"] + col_w // 2
+        cy = p["y"] + row_h // 2
+        draw.text((cx, cy - 25), p["title"], fill=(255, 255, 255), font=font_main, anchor="mm")
+        draw.text((cx, cy + 30), p["sub"], fill=(241, 245, 249), font=font_sub, anchor="mm")
+
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return Response(content=buf.getvalue(), media_type="image/png")
 
 @app.get("/api/user_stats/{user_id}")
 def get_user_stats(user_id: str, db: Session = Depends(get_db)):
