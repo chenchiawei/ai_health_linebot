@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 健康與減重數據看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #1DB446;
+            --dark: #2C3E50;
+            --light: #F8F9FA;
+            --card-bg: #FFFFFF;
+            --accent: #E74C3C;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light);
+            margin: 0;
+            padding: 16px;
+            color: #333;
+        }
+
+        .header {
+            text-align: center;
+            padding: 12px 0 20px 0;
+        }
+
+        .header h1 {
+            font-size: 22px;
+            color: var(--dark);
+            margin: 0;
+        }
+
+        .header p {
+            font-size: 14px;
+            color: #7F8C8D;
+            margin: 4px 0 0 0;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--dark);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 250px;
+        }
+
+        .summary-boxes {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .box {
+            flex: 1;
+            background: #F1F5F9;
+            padding: 12px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .box .label {
+            font-size: 12px;
+            color: #64748B;
+        }
+
+        .box .val {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--dark);
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 個人健康數據趨勢看板</h1>
+        <p>追蹤您的體重變化與每日三大營養素分配</p>
+    </div>
+
+    <div class="grid">
+        <!-- 概況小卡片 -->
+        <div class="card">
+            <div class="summary-boxes">
+                <div class="box">
+                    <div class="label">目前體重</div>
+                    <div class="val" id="currWeight">72.0 kg</div>
+                </div>
+                <div class="box">
+                    <div class="label">體脂率</div>
+                    <div class="val" id="currFat">16.0 %</div>
+                </div>
+                <div class="box">
+                    <div class="label">今日攝取</div>
+                    <div class="val" id="todayCal" style="color: var(--primary);">1250 kcal</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 體重體脂趨勢折線圖 -->
+        <div class="card">
+            <div class="card-title">📉 體重與體脂趨勢 (近 7 日)</div>
+            <div class="chart-container">
+                <canvas id="weightChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 營養素比例圓餅圖 -->
+        <div class="card">
+            <div class="card-title">🥗 今日三大營養素比例</div>
+            <div class="chart-container">
+                <canvas id="macroChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化體重趨勢折線圖
+        const ctxWeight = document.getElementById('weightChart').getContext('2d');
+        new Chart(ctxWeight, {
+            type: 'line',
+            data: {
+                labels: ['7天前', '6天前', '5天前', '4天前', '3天前', '昨天', '今天'],
+                datasets: [{
+                    label: '體重 (kg)',
+                    data: [73.5, 73.2, 73.0, 72.8, 72.5, 72.3, 72.0],
+                    borderColor: '#1DB446',
+                    backgroundColor: 'rgba(29, 180, 70, 0.1)',
+                    tension: 0.3,
+                    fill: true,
+                    yAxisID: 'y'
+                }, {
+                    label: '體脂 (%)',
+                    data: [17.2, 17.0, 16.8, 16.6, 16.5, 16.2, 16.0],
+                    borderColor: '#E74C3C',
+                    borderDash: [5, 5],
+                    tension: 0.3,
+                    yAxisID: 'y1'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: '體重 (kg)' }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        grid: { drawOnChartArea: false },
+                        title: { display: true, text: '體脂 (%)' }
+                    }
+                }
+            }
+        });
+
+        // 初始化三大營養素圓餅圖
+        const ctxMacro = document.getElementById('macroChart').getContext('2d');
+        new Chart(ctxMacro, {
+            type: 'doughnut',
+            data: {
+                labels: ['蛋白質 (g)', '碳水化合物 (g)', '脂肪 (g)'],
+                datasets: [{
+                    data: [110, 140, 42],
+                    backgroundColor: ['#3498DB', '#F39C12', '#9B59B6'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

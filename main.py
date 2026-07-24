@@ -1,9 +1,11 @@
 import re
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from linebot.v3 import WebhookHandler
@@ -28,6 +30,9 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="AI 健康 & 減重外食 LINE Bot")
 
+# 掛載靜態檔案 (LIFF Dashboard)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # LINE API 設定
 configuration = Configuration(access_token=settings.LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(settings.LINE_CHANNEL_SECRET)
@@ -35,6 +40,35 @@ handler = WebhookHandler(settings.LINE_CHANNEL_SECRET)
 @app.get("/")
 def read_root():
     return {"status": "online", "message": "AI 健康 LINE Bot 伺服器運作中！"}
+
+@app.get("/liff")
+def get_liff_page():
+    """回傳 LINE LIFF 視覺化數據圖表網頁"""
+    return FileResponse("static/liff.html")
+
+@app.get("/api/user_stats/{user_id}")
+def get_user_stats(user_id: str, db: Session = Depends(get_db)):
+    """提供 LIFF 圖表使用之歷史體重與三大營養素統計資料"""
+    user = db.query(models.User).filter(models.User.line_user_id == user_id).first()
+    if not user:
+        return {"status": "error", "message": "User not found"}
+
+    # 取最近 7 天體重
+    seven_days_ago = datetime.utcnow() - timedelta(days=7)
+    logs = db.query(models.HealthLog).filter(
+        models.HealthLog.line_user_id == user_id,
+        models.HealthLog.logged_at >= seven_days_ago
+    ).order_by(models.HealthLog.logged_at.asc()).all()
+
+    today_summary = get_today_nutrition_summary(db, user_id)
+
+    return {
+        "weight": user.weight,
+        "body_fat": user.body_fat or 0,
+        "today_calories": today_summary["today_calories"],
+        "today_protein": today_summary["today_protein"],
+        "history": [{"weight": l.weight, "body_fat": l.body_fat, "date": l.logged_at.strftime("%m/%d")} for l in logs]
+    }
 
 @app.post("/webhook")
 async def callback(request: Request):
@@ -59,7 +93,7 @@ async def callback(request: Request):
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text_message(event):
     """
-    處理使用者傳送的文字訊息 (設定個人資料、文字飲食打卡、查詢狀態)
+    處理使用者傳送的文字訊息 (設定個人資料、外食攻略、文字飲食打卡、查詢狀態)
     """
     user_id = event.source.user_id
     user_text = event.message.text.strip()
@@ -68,25 +102,38 @@ def handle_text_message(event):
     # 1. 取得或建立使用者資料
     user = db.query(models.User).filter(models.User.line_user_id == user_id).first()
     if not user:
-        # 新使用者預設建立檔
         user = models.User(line_user_id=user_id)
         db.add(user)
         db.commit()
         db.refresh(user)
 
-    # 2. 指令解析：查看狀態 / 說明
+    # 2. 指令解析：外食情境避坑指南
+    if "7-11" in user_text or "超商" in user_text:
+        flex_msg = line_service.create_outing_guide_flex("7-11")
+        send_line_reply(event.reply_token, flex_msg)
+        return
+    elif "火鍋" in user_text:
+        flex_msg = line_service.create_outing_guide_flex("火鍋")
+        send_line_reply(event.reply_token, flex_msg)
+        return
+    elif "便當" in user_text and not any(k in user_text for k in ["吃了", "吃個", "紀錄"]):
+        flex_msg = line_service.create_outing_guide_flex("便當")
+        send_line_reply(event.reply_token, flex_msg)
+        return
+
+    # 3. 指令解析：查看狀態 / 說明
     if user_text in ["查看狀態", "我的資料", "健康概況", "打卡總覽", "選單"]:
         reply_msg = get_user_summary_flex(db, user)
         send_line_reply(event.reply_token, reply_msg)
         return
 
-    # 3. 指令解析：設定基本資料 (例如: "設定 175cm 70kg 15% 減脂" 或 "體重 68kg")
+    # 4. 指令解析：設定基本資料 (例如: "設定 175cm 70kg 15% 減脂" 或 "體重 68kg")
     if "設定" in user_text or "體重" in user_text or "體脂" in user_text:
         reply_text = parse_and_update_user_profile(db, user, user_text)
-        send_line_reply(event.reply_token, TextMessage(text=reply_text))
+        send_line_reply(event.reply_token, TextMessage(text=reply_text, quick_reply=line_service.get_quick_reply_buttons()))
         return
 
-    # 4. 指令解析：預設為文字飲食打卡 (例如: "吃了舒肥雞胸便當")
+    # 5. 預設：智慧判斷日常聊天 vs 飲食打卡
     process_text_meal_log(event, db, user, user_text)
 
 @handler.add(MessageEvent, message=ImageMessageContent)
@@ -102,19 +149,14 @@ def handle_image_message(event):
         db.add(user)
         db.commit()
 
-    # 下載圖片內容
     try:
         with ApiClient(configuration) as api_client:
             line_bot_blob_api = MessagingApiBlob(api_client)
             image_bytes = line_bot_blob_api.get_message_content(message_id=event.message.id)
 
-        # 呼叫 Gemini 進行圖片辨識
         meal_data = gemini_service.analyze_food_with_gemini(image_bytes=image_bytes)
-
-        # 記錄至資料庫
         save_meal_log(db, user_id, meal_data)
 
-        # 取得最新今日累計並生成 Flex Message
         today_summary = get_today_nutrition_summary(db, user_id)
         user_summary = {
             "target_calories": user.target_calories,
@@ -128,7 +170,7 @@ def handle_image_message(event):
 
     except Exception as e:
         logger.error(f"處理圖片失敗: {e}")
-        send_line_reply(event.reply_token, TextMessage(text="⚠️ 圖片分析時發生錯誤，請稍後重試！"))
+        send_line_reply(event.reply_token, TextMessage(text="⚠️ 圖片分析時發生錯誤，請稍後重試！", quick_reply=line_service.get_quick_reply_buttons()))
 
 @handler.add(MessageEvent, message=LocationMessageContent)
 def handle_location_message(event):
@@ -144,15 +186,12 @@ def handle_location_message(event):
     if not user:
         user = models.User(line_user_id=user_id)
 
-    # 1. 計算今日剩餘熱量與蛋白質
     today_summary = get_today_nutrition_summary(db, user_id)
     rem_cal = max(0, user.target_calories - today_summary["today_calories"])
     rem_p = max(0, user.target_protein - today_summary["today_protein"])
 
-    # 2. 搜尋周邊餐廳
     restaurants = maps_service.search_nearby_healthy_restaurants(lat, lng)
 
-    # 3. 呼叫 Gemini 生成點餐建議
     first_spot = restaurants[0] if restaurants else {"name": "健康餐廳", "type": "低卡便當"}
     tips = gemini_service.generate_dine_out_tips(
         restaurant_name=first_spot["name"],
@@ -161,7 +200,6 @@ def handle_location_message(event):
         remaining_protein=round(rem_p)
     )
 
-    # 4. 回傳 Flex Carousel
     carousel_msg = line_service.create_dine_out_flex_carousel(restaurants, tips)
     send_line_reply(event.reply_token, carousel_msg)
 
@@ -170,6 +208,9 @@ def handle_location_message(event):
 # ------------------------------------------------------------------
 
 def send_line_reply(reply_token: str, message):
+    if hasattr(message, 'quick_reply') and message.quick_reply is None:
+        message.quick_reply = line_service.get_quick_reply_buttons()
+
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
         line_bot_api.reply_message(
@@ -183,13 +224,11 @@ def process_text_meal_log(event, db: Session, user: models.User, user_text: str)
     """處理文字輸入：自動區分一般聊天與飲食打卡"""
     ai_res = gemini_service.analyze_food_with_gemini(text_description=user_text)
 
-    # 如果是日常聊天/招呼/健康問答
     if ai_res.get("type") == "chat" or "reply" in ai_res:
         reply_text = ai_res.get("reply", "你好呀！我是你的專屬 AI 健康與減重外食特助 🥗！有什麼我可以幫忙的嗎？")
-        send_line_reply(event.reply_token, TextMessage(text=reply_text))
+        send_line_reply(event.reply_token, TextMessage(text=reply_text, quick_reply=line_service.get_quick_reply_buttons()))
         return
 
-    # 如果是飲食打卡
     save_meal_log(db, user.line_user_id, ai_res)
 
     today_summary = get_today_nutrition_summary(db, user.line_user_id)
@@ -239,22 +278,21 @@ def get_user_summary_flex(db: Session, user: models.User):
 
 def parse_and_update_user_profile(db: Session, user: models.User, text: str) -> str:
     """解析使用者設定字串並更新 BMR/TDEE 及目標"""
-    # 尋找身高數字 (如 175cm)
     h_match = re.search(r"(\d+(\.\d+)?)\s*(cm|公分)", text, re.IGNORECASE)
     if h_match:
         user.height = float(h_match.group(1))
 
-    # 尋找體重數字 (如 70kg)
     w_match = re.search(r"(\d+(\.\d+)?)\s*(kg|公斤|體重)", text, re.IGNORECASE)
     if w_match:
         user.weight = float(w_match.group(1))
+        # 新增至體重歷史紀錄
+        h_log = models.HealthLog(line_user_id=user.line_user_id, weight=user.weight, body_fat=user.body_fat)
+        db.add(h_log)
 
-    # 尋找體脂數字 (如 18%)
     bf_match = re.search(r"(\d+(\.\d+)?)\s*(%|體脂)", text, re.IGNORECASE)
     if bf_match:
         user.body_fat = float(bf_match.group(1))
 
-    # 判斷目標
     if "增肌" in text:
         user.goal = "bulk"
     elif "維持" in text:
@@ -262,7 +300,6 @@ def parse_and_update_user_profile(db: Session, user: models.User, text: str) -> 
     elif "減脂" in text or "減肥" in text:
         user.goal = "cut"
 
-    # 重新計算 BMR 與 TDEE
     targets = gemini_service.calculate_tdee_and_targets(
         gender=user.gender,
         age=user.age,
