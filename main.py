@@ -30,8 +30,11 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="AI 健康 & 減重外食 LINE Bot")
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+
 # 掛載靜態檔案 (LIFF Dashboard)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # LINE API 設定
 configuration = Configuration(access_token=settings.LINE_CHANNEL_ACCESS_TOKEN)
@@ -44,12 +47,12 @@ def read_root():
 @app.get("/liff")
 def get_liff_page():
     """回傳 LINE LIFF 視覺化數據圖表網頁"""
-    return FileResponse("static/liff.html")
+    return FileResponse(os.path.join(STATIC_DIR, "liff.html"))
 
 @app.get("/rich_menu.png")
 def get_rich_menu_image():
     """回傳 2500x1686 圖文選單背景圖片"""
-    return FileResponse("static/rich_menu_2500x1686.png")
+    return FileResponse(os.path.join(STATIC_DIR, "rich_menu_2500x1686.png"))
 
 @app.get("/api/user_stats/{user_id}")
 def get_user_stats(user_id: str, db: Session = Depends(get_db)):
